@@ -1,0 +1,265 @@
+openapi: 3.0.3
+info:
+  title: Rubber Chicken API
+  description: Image service and metadata service API for upload, retrieval, and tagging
+  version: 1.0.0
+servers:
+  - url: http://localhost:3001
+    description: Image service
+  - url: http://localhost:3002
+    description: Metadata service
+
+paths:
+  images/upload:
+    post:
+      summary: Upload image and send metadata to meta-service
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                title:
+                  type: string
+                description:
+                  type: string
+                tags:
+                  type: string
+                  description: JSON array string of tags
+      responses:
+        '200':
+          description: Image uploaded
+        '400':
+          description: No file or invalid tags
+        '500':
+          description: Upload failed
+
+  images/gallery:
+    get:
+      summary: Fetch image gallery from meta-service
+      parameters:
+        - in: query
+          name: tagIds
+          schema:
+            type: string
+        - in: query
+          name: includeDuplicates
+          schema:
+            type: boolean
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+        - in: query
+          name: offset
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Gallery fetched
+        '500':
+          description: Fetch failed
+
+  /images/{filename}:
+    get:
+      summary: Serve image file
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Image served
+        '404':
+          description: File not found
+
+  /images/{imageId}:
+    delete:
+      summary: Delete image and metadata
+      parameters:
+        - name: imageId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted successfully
+        '404':
+          description: Image not found
+        '500':
+          description: Delete failed
+
+  /meta/:
+    post:
+      summary: Save image metadata to DynamoDB
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MetaInput'
+      responses:
+        '201':
+          description: Metadata saved
+        '400':
+          description: Missing required fields
+        '500':
+          description: Save failed
+
+    get:
+      summary: Query image metadata
+      parameters:
+        - name: tagIds
+          in: query
+          schema:
+            type: string
+        - name: includeDuplicates
+          in: query
+          schema:
+            type: boolean
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+        - name: offset
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Metadata list
+        '500':
+          description: Query failed
+
+  /meta/by-imageId:
+    get:
+      summary: Get metadata by imageId (query param)
+      parameters:
+        - name: imageId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Metadata found
+        '400':
+          description: Missing imageId
+        '404':
+          description: Not found
+        '500':
+          description: Fetch failed
+
+  /meta/{imageId}:
+    patch:
+      summary: Update image metadata
+      parameters:
+        - name: imageId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MetaUpdate'
+      responses:
+        '200':
+          description: Metadata updated
+        '403':
+          description: Locked
+        '404':
+          description: Not found
+        '500':
+          description: Update failed
+
+    /meta/delete:
+      summary: Delete metadata by imageId
+      parameters:
+        - name: imageId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Metadata deleted
+        '400':
+          description: Missing imageId
+        '500':
+          description: Delete failed
+
+components:
+  schemas:
+    Tag:
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        color:
+          type: string
+    MetaInput:
+      type: object
+      required:
+        - imageId
+        - title
+        - fileSize
+        - fileType
+        - fileUrl
+      properties:
+        imageId:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        fileSize:
+          type: integer
+        fileType:
+          type: string
+        fileUrl:
+          type: string
+        originalFilename:
+          type: string
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+    MetaUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'

@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  dynamodb-local:
+    image: amazon/dynamodb-local
+    ports:
+      - "8000:8000"
+    command: "-jar DynamoDBLocal.jar -sharedDb"
+    mem_limit: 512m
+    volumes:
+      - dynamodb_data:/home/dynamodblocal/data
+  dynamodb-admin:
+    image: aaronshaf/dynamodb-admin
+    container_name: dynamodb-admin
+    ports:
+      - "8001:8001"
+    environment:
+      DYNAMO_ENDPOINT: http://dynamodb-local:8000
+    depends_on:
+      - dynamodb-local
+
+  image-services:
+    build: ./backend/services/image-services
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - AWS_REGION=us-east-1
+      - DYNAMO_TABLE=ImageMetaTable
+      - DYNAMO_ENDPOINT=http://dynamodb-local:8000
+      - ACCESS_KEY_ID=fake
+      - SECRET_ACCESS_KEY=fake
+      - UPLOAD_FOLDER=uploads
+      - META_SERVICE_URL=http://meta-service:3002
+      - IMAGE_SERVICE_URL=http://image-services:3001
+      - IS_DEVELOPMENT=true
+    volumes:
+      - ./backend/services/image-services/uploads:/app/uploads
+    depends_on:
+      - dynamodb-local
+
+  meta-service:
+    build: ./backend/services/meta-service
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - AWS_REGION=us-east-1
+      - DYNAMO_TABLE=ImageMetaTable
+      - DYNAMO_ENDPOINT=http://dynamodb-local:8000
+      - ACCESS_KEY_ID=fake
+      - SECRET_ACCESS_KEY=fake
+      - IS_DEVELOPMENT=true
+    depends_on:
+      - dynamodb-local
+
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./frontend/public:/usr/share/nginx/html:ro
+    depends_on:
+      - image-services
+      - meta-service
+volumes:
+  dynamodb_data:
